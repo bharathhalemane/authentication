@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const crypto = require('crypto')
 
 exports.signup = async (req, res) => {
     try {
@@ -62,5 +63,77 @@ exports.login = async (req, res) => {
     } catch (err) {
         console.error("login ERROR 👉", err);
         res.status(500).json({ message: "Server error" });
+    }
+}
+
+exports.forgotPassword = async (req, res) => {
+    try{
+        const { email } = req.body || {}
+
+        if(!email){
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        const user = await User.findOne({ email })
+        if (!user) {
+            return res.json({message: "Password reset link sent to email if it exists"})
+        }
+
+        const resetToken = crypto.randomBytes(32).toString("hex")
+
+        user.resetPasswordToken = crypto
+            .createHash("sha256")
+            .update(resetToken)
+            .digest("hex")
+
+        user.resetPasswordExpire = Date.now() + 15 * 60 * 1000 
+
+        await user.save() 
+
+        const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`
+        res.json({message: "Password reset link sent to email if it exists"})
+        console.log(`Password reset link: ${resetUrl}`)
+    } catch (err) {
+        res.status(500).json({message: "Server error"})
+    }
+}
+
+exports.resetPassword = async (req, res) => {
+    try {
+        const {token} = req.params 
+        const {password, confirmPassword} = req.body 
+
+        if (!password || !confirmPassword) {
+            return res.status(400).json({message: "password required"})
+        }
+
+        if (password !== confirmPassword) {
+            return res.status(400).json({message: "Passwords do not match"})
+        }
+
+        const hashedToken = crypto
+            .createHash("sha256")
+            .update(token)
+            .digest("hex")
+
+        const user = await User.findOne({
+            resetPasswordToken: hashedToken,
+            resetPasswordExpire: {$gt: Date.now()}
+        })
+
+        if (!user) {
+            res.status(400).json({message: "Invalid or expired token"})
+        }
+
+        user.password = await bcrypt.hash(password, 10)
+        user.resetPasswordToken = undefined
+        user.resetPasswordExpire = undefined 
+
+        await user.save()
+
+        res.json({message: "Password reset successful"})
+
+    } catch (err) {
+        res.status(500).json({message: "server error"})
     }
 }

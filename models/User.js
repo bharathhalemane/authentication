@@ -18,7 +18,18 @@ const userSchema = new mongoose.Schema({
     },
     jwt_token : {
         type: String,        
-    }
+    },
+    
+        googleId: {
+        type: String,
+    },
+    resetPasswordToken: {
+            type: String,
+    },
+    resetPasswordExpire: {
+            type: Date,
+        }
+    
 },
 {timestamps: true})
 
