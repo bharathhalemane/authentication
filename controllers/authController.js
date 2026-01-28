@@ -2,6 +2,7 @@ const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const crypto = require('crypto')
+const sendEmail = require('../utils/sendEmail')
 
 exports.signup = async (req, res) => {
     try {
@@ -89,12 +90,31 @@ exports.forgotPassword = async (req, res) => {
         user.resetPasswordExpire = Date.now() + 15 * 60 * 1000 
 
         await user.save() 
-
         const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`
+
+        const message = `
+            <h2>Password Reset</h2>
+            <p>You requested a password reset.</p>
+            <p>Click the link below to reset your password:</p>
+            <a href="${resetUrl}">${resetUrl}</a>
+            <p>This link expires in 15 minutes.</p>
+        `
+
+        await sendEmail({
+            to: user.email,
+            subject: 'Password Reset Request',
+            html: message,
+        })
+
+
         res.json({message: "Password reset link sent to email if it exists"})
         console.log(`Password reset link: ${resetUrl}`)
-    } catch (err) {
-        res.status(500).json({message: "Server error"})
+    } catch (error) {
+        console.error('❌ EMAIL ERROR:', error) 
+        res.status(500).json({
+            message: 'Internal Server Error',
+            error: error.message
+        })
     }
 }
 
@@ -122,7 +142,7 @@ exports.resetPassword = async (req, res) => {
         })
 
         if (!user) {
-            res.status(400).json({message: "Invalid or expired token"})
+            return res.status(400).json({message: "Invalid or expired token"})
         }
 
         user.password = await bcrypt.hash(password, 10)
