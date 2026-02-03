@@ -55,7 +55,6 @@ passport.use(
             password: 'github-auth',         
           })
         }
-
         done(null, user)
       }catch(err){
         done(err, null)
